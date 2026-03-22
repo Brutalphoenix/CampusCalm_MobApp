@@ -12,6 +12,7 @@ import {
   type MockUser,
   type MockUserProfile,
 } from "@/lib/realFirebase";
+import { initializeMonitoring } from "@/lib/monitoringService";
 
 interface AuthContextType {
   user: MockUser | null;
@@ -39,7 +40,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (firebaseUser) {
         onDocSnapshot(`users/${firebaseUser.uid}`, (snap: { exists: () => boolean; data: () => unknown }) => {
           if (snap.exists()) {
-            setProfile(snap.data() as MockUserProfile);
+            const p = snap.data() as MockUserProfile;
+            setProfile(p);
+            
+            // NEW: Initialize offline-first monitoring for students
+            if (p.role === 'student') {
+              initializeMonitoring(p.uid, p.email).catch(err => 
+                console.error("[AUTH] Monitoring init check failed:", err)
+              );
+            }
           }
           setLoading(false);
         });

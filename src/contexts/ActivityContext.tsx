@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useRef } from "react";
 import { useAuth } from "./AuthContext";
 import { onDocSnapshot, setDocData, type TimetableEntry } from "@/lib/realFirebase";
+import { logScreenUnlock, syncDataToAdmin } from "@/lib/monitoringService";
 import { serverTimestamp, increment } from "firebase/firestore";
 import { App } from "@capacitor/app";
 import { BackgroundTask } from "@capawesome/capacitor-background-task";
@@ -100,9 +101,14 @@ export const ActivityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       
       // RESET LOGIC: Transition from Monitoring ON -> OFF
       if (wasMonitoringRef.current && !isNowMonitoring) {
-        console.log("[ACTIVITY] Monitoring ended. Resetting activity data...");
+        console.log("[ACTIVITY] Monitoring ended. Triggering batch sync...");
         ForegroundService.stopForegroundService().catch(() => {});
-        // resetActivityData() removed to preserve data across scheduled breaks
+        // NEW: Batch Sync at end of class
+        if (profile?.uid) {
+          syncDataToAdmin(profile.uid).catch(err => 
+            console.error("[ACTIVITY] Batch sync trigger failed:", err)
+          );
+        }
       } else if (!wasMonitoringRef.current && isNowMonitoring) {
         // Transition from OFF -> ON
         ForegroundService.startForegroundService({
@@ -216,6 +222,11 @@ export const ActivityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       if (lastVisibleStartTimeRef.current === null) {
         lastVisibleStartTimeRef.current = Date.now();
         updateActivity(true);
+        
+        // NEW: Offline-First Local Logging for Screen Unlock
+        if (monitoring) {
+          logScreenUnlock();
+        }
       }
     };
 

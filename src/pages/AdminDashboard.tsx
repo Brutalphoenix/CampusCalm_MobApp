@@ -276,11 +276,11 @@ const AdminDashboard = () => {
       }
 
       if (Object.keys(updates).length > 0 && profile?.uid) {
-        await setDocData(`adminSettings/${profile.uid}/monitoring`, updates);
+        await setDocData(`users/${profile.uid}/settings/monitoring`, updates);
       }
     };
 
-    const interval = setInterval(checkAutoToggle, 5000);
+    const interval = setInterval(checkAutoToggle, 1000);
     checkAutoToggle();
     return () => clearInterval(interval);
   }, [timetable, schedActive, manualOverride, lastRecommendedActive, manualOverrideDate]);
@@ -331,7 +331,7 @@ const AdminDashboard = () => {
     }
     setIsProcessing(true);
     try {
-      if (profile?.uid) await setDocData(`adminSettings/${profile.uid}/monitoring`, { adminEmail });
+      if (profile?.uid) await setDocData(`users/${profile.uid}/settings/monitoring`, { adminEmail });
       toast.success("Administrator email saved");
     } catch {
       toast.error("Failed to save email");
@@ -531,7 +531,7 @@ const AdminDashboard = () => {
     lastManualActionTime.current = Date.now();
     const updated = timetable.filter((t) => t.id !== id);
     setTimetable(updated);
-    await setDocData(`adminSettings/${profile?.uid}/monitoring`, {
+    await setDocData(`users/${profile?.uid}/settings/monitoring`, {
       timetable: updated,
     });
     toast.success("Class removed");
