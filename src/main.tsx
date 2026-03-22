@@ -11,4 +11,13 @@ if ('serviceWorker' in navigator) {
   });
 }
 
+// Suppress non-essential logs in production for security
+if (import.meta.env.PROD) {
+  console.log = () => {};
+  console.debug = () => {};
+  console.info = () => {};
+  console.warn = () => {};
+  // Keep console.error for debugging critical failures
+}
+
 createRoot(document.getElementById("root")!).render(<App />);

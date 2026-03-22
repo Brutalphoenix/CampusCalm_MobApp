@@ -12,7 +12,9 @@ import {
   type MockUser,
   type MockUserProfile,
 } from "@/lib/realFirebase";
-import { initializeMonitoring } from "@/lib/monitoringService";
+import { initializeMonitoring, stopMonitoringListeners } from "@/lib/monitoringService";
+import { initializeNotifications } from "@/lib/notificationService";
+import { Preferences } from "@capacitor/preferences";
 
 interface AuthContextType {
   user: MockUser | null;
@@ -43,12 +45,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const p = snap.data() as MockUserProfile;
             setProfile(p);
             
+            // NEW: Save UID for background encryption keys
+            Preferences.set({ key: 'user_uid', value: p.uid });
+            
             // NEW: Initialize offline-first monitoring for students
             if (p.role === 'student') {
               initializeMonitoring(p.uid, p.email).catch(err => 
                 console.error("[AUTH] Monitoring init check failed:", err)
               );
             }
+            
+            // NEW: Initialize Notification permissions and Push for admins
+            initializeNotifications(p.uid, p.role);
           }
           setLoading(false);
         });
@@ -166,6 +174,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = async () => {
+    await stopMonitoringListeners();
     await signOutUser();
     setProfile(null);
   };

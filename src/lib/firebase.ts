@@ -18,4 +18,15 @@ export const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+
+// NEW: App Check Integration (Play Integrity)
+// Note: Requires valid siteKey/token from Firebase Console to work in production
+import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "firebase/app-check";
+if (typeof window !== "undefined") {
+  initializeAppCheck(app, {
+    provider: new ReCaptchaEnterpriseProvider('6LcwS-wqAAAAAP67Y7P_ZzM-6f4WzK9zVzRz4_8m'),
+    isTokenAutoRefreshEnabled: true
+  });
+}
+
 export const analytics = typeof window !== "undefined" ? getAnalytics(app) : null;

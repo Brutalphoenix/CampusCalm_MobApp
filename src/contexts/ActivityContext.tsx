@@ -1,9 +1,11 @@
 import React, { createContext, useContext, useEffect, useState, useRef } from "react";
 import { useAuth } from "./AuthContext";
 import { onDocSnapshot, setDocData, type TimetableEntry } from "@/lib/realFirebase";
-import { logScreenUnlock, syncDataToAdmin } from "@/lib/monitoringService";
+import { logScreenUnlock, syncDataToAdmin, logNetworkEvent } from "@/lib/monitoringService";
+import { notifyMonitoringStatus, requestAdminNotification } from "@/lib/notificationService";
 import { serverTimestamp, increment } from "firebase/firestore";
 import { App } from "@capacitor/app";
+import { Network } from "@capacitor/network";
 import { BackgroundTask } from "@capawesome/capacitor-background-task";
 import { ForegroundService } from "@capawesome-team/capacitor-android-foreground-service";
 
@@ -26,6 +28,8 @@ export const ActivityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const lastVisibleStartTimeRef = useRef<number | null>(document.visibilityState === "visible" ? Date.now() : null);
   const accumulatedMsRef = useRef(0);
   const wasMonitoringRef = useRef(false);
+  const currentClassIdRef = useRef<string | null>(null);
+  const currentClassNameRef = useRef<string>("Unknown");
 
   useEffect(() => {
     if (!profile || profile.role !== "student" || profile.blocked) {
@@ -62,18 +66,18 @@ export const ActivityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       
       // Timetable Check
       const timetable = settings.timetable || [];
-      const todayClasses = timetable.filter((t: { day: string }) => t.day === today);
-      const activeEntries = todayClasses.filter((entry: { subject: string; startTime: string; endTime: string }) => {
+      const currentClass = timetable.find((entry: TimetableEntry) => {
+        if (entry.day !== today) return false;
         const [sh, sm] = entry.startTime.split(":").map(Number);
         const [eh, em] = entry.endTime.split(":").map(Number);
-        // Using < instead of <= for end time to ensure the period ends exactly at the start of the final minute.
         return currentTimeInMinutes >= (sh * 60 + sm) && currentTimeInMinutes < (eh * 60 + em);
       });
 
-      const hasBreak = activeEntries.some((e: { subject: string }) => e.subject.toLowerCase().includes("break"));
-      const hasClass = activeEntries.some((e: { subject: string }) => !e.subject.toLowerCase().includes("break"));
-
-      const inClass = hasClass && !hasBreak;
+      const isBreak = currentClass?.subject.toLowerCase().includes("break");
+      const inClass = !!currentClass && !isBreak;
+      
+      currentClassIdRef.current = currentClass?.id || null;
+      currentClassNameRef.current = currentClass?.subject || "Unknown";
 
       // NEW: Absent Status Reset Logic
       // If student is currently "Blocked" (from marking themselves absent)
@@ -103,12 +107,26 @@ export const ActivityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       if (wasMonitoringRef.current && !isNowMonitoring) {
         console.log("[ACTIVITY] Monitoring ended. Triggering batch sync...");
         ForegroundService.stopForegroundService().catch(() => {});
-        // NEW: Batch Sync at end of class
+        
         if (profile?.uid) {
-          syncDataToAdmin(profile.uid).catch(err => 
-            console.error("[ACTIVITY] Batch sync trigger failed:", err)
-          );
+          // Check if it's the final class of the day before master sync
+          const timetable = settings.timetable || [];
+          const today = new Date().toLocaleDateString("en-US", { weekday: "long" });
+          const todayClasses = timetable.filter((t: any) => t.day === today)
+            .sort((a: any, b: any) => a.endTime.localeCompare(b.endTime));
+          
+          const lastClass = todayClasses[todayClasses.length - 1];
+          const isFinalClass = lastClass && lastClass.id === currentClassIdRef.current;
+
+          if (isFinalClass) {
+            console.log("[ACTIVITY] Final class ended. Triggering MASTER sync...");
+            syncDataToAdmin(profile.uid).catch(err => 
+              console.error("[ACTIVITY] Master sync failed:", err)
+            );
+          }
         }
+        // NEW: Student Local Notification (Ended)
+        notifyMonitoringStatus(false);
       } else if (!wasMonitoringRef.current && isNowMonitoring) {
         // Transition from OFF -> ON
         ForegroundService.startForegroundService({
@@ -117,6 +135,15 @@ export const ActivityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           body: 'Your screen activity is actively monitored by your administrator.',
           smallIcon: 'ic_launcher'
         }).catch(() => {});
+        
+        // NEW: Student Local Notification (Started)
+        notifyMonitoringStatus(true);
+        
+        // NEW: Admin Cloud Alert (Session Started)
+        if (profile?.createdBy) {
+          requestAdminNotification(profile.createdBy, 'SESSION_START', profile.name);
+        }
+        
         if (lastVisibleStartTimeRef.current !== null) {
           lastVisibleStartTimeRef.current = Date.now();
         }
@@ -225,7 +252,7 @@ export const ActivityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         
         // NEW: Offline-First Local Logging for Screen Unlock
         if (monitoring) {
-          logScreenUnlock();
+          logScreenUnlock(currentClassNameRef.current);
         }
       }
     };
@@ -241,6 +268,14 @@ export const ActivityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const appStateListener = App.addListener('appStateChange', ({ isActive }) => {
       if (isActive) handleAppResume();
       else handleAppPause();
+    });
+
+    // NEW: Network Status Listener for History Tracking
+    const networkListener = Network.addListener('networkStatusChange', (status) => {
+      // Access current state via ref or closure safely
+      if (wasMonitoringRef.current) {
+        logNetworkEvent(status.connected, currentClassNameRef.current);
+      }
     });
 
     // Robust save-on-close logic
@@ -313,6 +348,7 @@ export const ActivityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       window.removeEventListener("pagehide", handleUnload);
       window.removeEventListener("beforeunload", handleUnload);
       appStateListener.then(l => l.remove());
+      networkListener.then(l => l.remove());
     };
   }, [profile]);
 
