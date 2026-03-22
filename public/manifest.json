@@ -1,0 +1,17 @@
+{
+  "name": "ClassTime Monitoring",
+  "short_name": "ClassTime",
+  "description": "Student Activity & Phone Monitoring System",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#3b82f6",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/2092/2092215.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
