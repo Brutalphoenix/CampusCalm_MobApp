@@ -265,6 +265,7 @@ export const stopMonitoringListeners = async () => {
 export const initializeMonitoring = async (uid: string, email: string) => {
   console.log('[Monitoring] Initializing...');
   await checkTampering(uid, email);
+  console.log('[Monitoring] Triggering startup sync...');
   await syncDataToAdmin(uid);
   
   // Cleanup any old listener first

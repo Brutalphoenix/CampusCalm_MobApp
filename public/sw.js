@@ -23,7 +23,7 @@ async function performBackgroundHeartbeat() {
     // 3. Update 'activity' document to show student is "Online" in background
     const activityUrl = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/activity/${uid}?updateMask.fieldPaths=lastActive&updateMask.fieldPaths=online`;
     
-    const headers: Record<string, string> = {
+    const headers = {
       'Content-Type': 'application/json'
     };
     

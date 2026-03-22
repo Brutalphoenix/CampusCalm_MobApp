@@ -18,6 +18,14 @@ import {
   Timestamp
 } from "firebase/firestore";
 import { auth, db } from "./firebase";
+import { setPersistence, browserLocalPersistence } from "firebase/auth";
+
+// Harden session persistence for Capacitor WebView
+if (typeof window !== "undefined") {
+  setPersistence(auth, browserLocalPersistence).catch(err => 
+    console.error("[FIREBASE] Persistence setup failed:", err)
+  );
+}
 
 export interface MockUser {
   uid: string;

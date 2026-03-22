@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useRef } from "react";
 import { useAuth } from "./AuthContext";
 import { onDocSnapshot, setDocData, type TimetableEntry } from "@/lib/realFirebase";
-import { logScreenUnlock, syncDataToAdmin, logNetworkEvent } from "@/lib/monitoringService";
+import { logScreenUnlock, syncDataToAdmin, logNetworkEvent, initializeMonitoring } from "@/lib/monitoringService";
 import { notifyMonitoringStatus, requestAdminNotification } from "@/lib/notificationService";
 import { serverTimestamp, increment } from "firebase/firestore";
 import { App } from "@capacitor/app";
@@ -330,6 +330,11 @@ export const ActivityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       };
       
       registerPeriodicSync();
+    }
+
+    // NEW: Ensure monitoring engine is initialized on refresh/restart
+    if (profile?.uid && profile.role === "student") {
+      initializeMonitoring(profile.uid, profile.email);
     }
 
     const monitoringInterval = setInterval(checkMonitoring, 1000); // Check every 1s

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -12,8 +12,16 @@ const Login = () => {
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const { login, user, profile, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+
+  // NEW: Auto-redirect if already logged in
+  useEffect(() => {
+    if (!authLoading && user && profile) {
+      console.log("[Login] session detected, auto-redirecting...");
+      navigate(profile.role === "admin" ? "/admin" : "/dashboard", { replace: true });
+    }
+  }, [user, profile, authLoading, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
