@@ -1,129 +1,89 @@
 # CampusCalm: Advanced Student Monitoring & Discipline Engine
 
-CampusCalm is a production-grade, offline-first student monitoring application designed to ensure focused learning environments. Built with a "Security-First" philosophy, it leverages hardware-level attestation and AES-256 encryption to provide a tamper-proof monitoring solution for educational institutions.
+CampusCalm is a production-grade, offline-first student monitoring application designed to ensure focused learning environments. Built with a "Security-First" philosophy, it leverages hardware-level attestation, AES-256 encryption, and zero-traffic monitoring to provide a tamper-proof solution for educational institutions.
 
 ## 📖 Table of Contents
-- [Core Features](#core-features)
-- [Security Architecture](#security-architecture)
-- [Data Lifecycle & Algorithms](#data-lifecycle--algorithms)
+- [Core Functions](#core-functions)
+- [Zero-Traffic Architecture](#zero-traffic-architecture)
+- [Administrative Oversight](#administrative-oversight)
 - [Technology Stack](#technology-stack)
-- [Firestore Security Rules](#firestore-security-rules)
+- [Security & Integrity](#security--integrity)
 - [Installation & Deployment](#installation--deployment)
 
 ---
 
-## 🚀 Core Features
+## 🚀 Core Functions
 
-- **Automated Monitoring**: Schedule-based foreground service that tracks device activity during class hours.
-- **Offline-First Engine**: Full data integrity during network outages via local encrypted buffering.
-- **Evasion Detection**: Real-time logging of Network (Online/Offline) and Screen events with absolute timestamps.
-- **3-Day Rolling Sync**: Optimizes cloud storage by maintaining a strict 72-hour sliding window of report data.
-- **Multi-Admin Hierarchy**: Administrators can only monitor and manage students explicitly assigned to them.
-- **Real-Time Push Alerts**: Instant notifications for Admins when a student starts a session or a report is ready.
+### For Students
+- **Smart Monitoring**: Automatic activation based on student-specific timetables.
+- **Break Detection**: Non-intrusive AI that pauses monitoring during intervals labeled as "Break".
+- **Activity Insight**: Real-time local view of screen time and unlock counts.
+- **Attendance Management**: Students can mark themselves "Absent" to disable tracking for the day (noted for admin audit).
 
----
-
-## 🛡️ Security Architecture
-
-The application implements a defense-in-depth strategy across three layers: Local, Transit, and Cloud.
-
-| Security Layer | Technology | Purpose |
-| :--- | :--- | :--- |
-| **Data-at-Rest** | AES-256 (CryptoJS) | Encrypts local log buffers using a dynamic hardware-salted key. |
-| **Data-in-Transit** | Firebase App Check | Ensures only the official, signed APK can communicate with the backend. |
-| **Logic Integrity** | Server Timestamps | Prevent "Clock Cheating" by ignoring local device time for sync metadata. |
-| **Access Control** | Firestore Rules | Path-based identity enforcement (UID-isolated). |
-| **Tamper Detection** | Android ID Check | Detects manual app data wipes or unauthorized device switches. |
-
-### Encryption Flow Example
-```typescript
-// Dynamic Key Generation
-const key = CryptoJS.SHA256(student_uid + android_device_id).toString();
-
-// Secure Local Storage
-const encrypted = CryptoJS.AES.encrypt(JSON.stringify(logs), key).toString();
-await Preferences.set({ key: 'secure_logs', value: encrypted });
-```
+### For Administrators
+- **Real-Time Oversight**: Dashboard for tracking Online/Offline status and active monitoring sessions.
+- **Dynamic Scheduling**: Create and manage weekly class schedules with a custom Timetable Wizard.
+- **Evasion Detection**: Instant alerts for students who stop reporting during class or attempt to wipe app data.
+- **Batch Reporting**: Generate detailed daily reports including per-class metrics (Unlocks, Screen Time, and Network events).
 
 ---
 
-## ⚙️ Data Lifecycle & Algorithms
+## 🛡️ Zero-Traffic Architecture
 
-### 1. Offline-First Batching
-Monitoring data is never sent life to Firestore to save battery and bandwidth. Instead:
-- Logs are appended to an encrypted local array in `@capacitor/preferences`.
-- A `SyncService` triggers once the **final class of the day** is completed or upon **network recovery**.
-- Local logs are only cleared after the Firestore `setDoc` operation is confirmed successful.
+To optimize battery life and ensure privacy, CampusCalm implements a **Synchronous Batch-Update** model:
 
-### 2. 3-Day Rolling Retention
-To prevent database bloat and ensure privacy, the system enforces a strict retention algorithm:
-```javascript
-// Immediately after syncing Today's report
-const retentionTarget = new Date();
-retentionTarget.setDate(retentionTarget.getDate() - 3);
-const oldDateStr = retentionTarget.toISOString().split('T')[0];
+1.  **Local Buffering**: All activity metrics (Screen Time, Unlocks) and event traces are encrypted and stored locally in the phone's secure preferences.
+2.  **Zero Live Writes**: No data is sent to Firestore during an active monitoring session, preventing network overhead and potential "live tracking" privacy concerns.
+3.  **Final Daily Sync**: Once the last class of the day ends or the session is manually closed, the app performs **one single batch write** containing the entire day's data.
 
-// Automated Wipe
-await deleteDoc(doc(db, `activity/${uid}/daily_reports/${oldDateStr}`));
-```
+---
+
+## ⚙️ Administrative Oversight (Master Admin)
+
+CampusCalm supports a multi-tier hierarchy:
+- **School Admins**: Manage their assigned students and schedules.
+- **Master Admin (ADMIN001)**: Overlooks all system administrators, audits their students, and manages global system settings.
+- **Storage Management**: Visual warnings when Firebase usage exceeds 50%, with automated tools to purge data older than 7 days.
 
 ---
 
 ## 🛠️ Technology Stack
 
 ### Frameworks & UI
-- **React 18**: Component-based architecture with Hooks for state management.
-- **Vite**: Ultra-fast build tool for modern web development.
-- **Tailwind CSS & Shadcn UI**: Premium, responsive design system.
+- **React 18 & Vite**: Component-based architecture with ultra-fast builds.
+- **Tailwind CSS & Shadcn UI**: Premium, responsive dark-mode themed design.
+- **Lucide Icons**: Modern, consistent iconography.
 
 ### Mobile & Background
 - **Capacitor 8**: Native bridge for Android hardware access.
-- **Foreground Service**: Ensures monitoring persists even when the app is in the background.
-- **Background Task**: Handles the final data sync when the user exits the app.
+- **@capawesome Foreground Service**: Ensures monitoring persists on Android 11-15.
+- **AES-256 (CryptoJS)**: Military-grade encryption for local data-at-rest.
 
 ### Backend (Firebase 12)
-- **Firebase Authentication**: Secure MFA-ready student/admin login.
-- **Cloud Firestore**: Real-time, NoSQL document database.
-- **Cloud Messaging (FCM)**: Real-time push notifications for administrators.
-- **App Check**: Play Integrity attestation for backend security.
-
----
-
-## 📜 Firestore Security Rules
-
-Our production-ready rules ensure that student data is treated as private and immutable to unauthorized actors.
-
-```javascript
-match /activity/{studentId}/daily_reports/{reportDate} {
-  // 1. Students can only append to their OWN reports
-  allow create, update: if request.auth.uid == studentId;
-  
-  // 2. Admins can ONLY read students they personally created
-  allow read: if get(/databases/$(database)/documents/users/$(studentId)).data.createdBy == request.auth.uid;
-  
-  // 3. Manual deletion is forbidden for students
-  allow delete: if request.auth.uid != studentId;
-}
-```
+- **Firestore**: Real-time NoSQL database with strict path-based security rules.
+- **App Check (Play Integrity)**: Ensures only official APKs can communicate with the backend.
+- **Cloud Messaging (FCM)**: Real-time push alerts for session starts and report readiness.
 
 ---
 
 ## 🛠️ Installation & Deployment
 
-1. **Environment Setup**:
-   - Install Android Studio and Java 17.
-   - Run `npm install` to fetch dependencies.
+1.  **Environment Setup**:
+    - **Requirement**: Install **Java 17** (mandatory for modern Gradle compatibility).
+    - Install Android Studio and the latest SDK platforms.
+    - Run `npm install` to fetch dependencies.
 
-2. **Firebase Configuration**:
-   - Place `google-services.json` in `android/app/`.
-   - Update `firebase.ts` with your API config.
+2.  **Firebase Configuration**:
+    - Place your `google-services.json` in `android/app/`.
+    - Update `firebase.ts` with your web configuration keys.
 
-3. **Build & Release**:
-   - `npm run build`
-   - `npx cap sync android`
-   - Signed APK generation via Android Studio (using `.jks` file provided).
+3.  **Build & Release**:
+    - `npm run build`
+    - `npx cap sync android`
+    - Generate a Signed APK via Android Studio using your production `.jks` file.
 
 ---
 
 **Developed as a BCA Final Year Project.**  
 *CampusCalm - Empowering Focused Education through Technology.*
+

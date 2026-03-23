@@ -21,6 +21,7 @@
     "@capacitor/network": "^8.0.1",
     "@capacitor/preferences": "^8.0.1",
     "@capacitor/push-notifications": "^8.0.2",
+    "@capacitor/share": "^8.0.1",
     "@capawesome-team/capacitor-android-foreground-service": "^8.1.0",
     "@capawesome/capacitor-background-task": "^8.0.2",
     "@hookform/resolvers": "^3.10.0",

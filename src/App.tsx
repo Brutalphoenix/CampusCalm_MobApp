@@ -8,6 +8,7 @@ import Login from "@/pages/Login";
 import Signup from "@/pages/Signup";
 import StudentDashboard from "@/pages/StudentDashboard";
 import AdminDashboard from "@/pages/AdminDashboard";
+import DebugScreen from "@/pages/DebugScreen";
 import NotFound from "@/pages/NotFound";
 
 const App = () => (
@@ -36,6 +37,7 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
+            <Route path="/debug" element={<DebugScreen />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

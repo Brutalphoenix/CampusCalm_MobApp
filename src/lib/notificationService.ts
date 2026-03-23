@@ -5,21 +5,34 @@ import { doc, setDoc } from 'firebase/firestore';
 
 /**
  * 1. Permissions & Setup
+ * Multi-version safe permission handler for Android 11 through 16+.
  */
-export const initializeNotifications = async (uid: string, role: string) => {
+export const initializeNotifications = async (uid?: string, role?: string): Promise<boolean> => {
   try {
-    // Request Local Notification Permissions
+    console.log('[NOTIF] Requesting system permissions...');
+    
+    // Request Local Notification Permissions (Standard for Android 13+)
+    // On Android 11/12, this will usually resolve to 'granted' immediately.
     const localPerms = await LocalNotifications.requestPermissions();
-    if (localPerms.display === 'granted') {
-      console.log('[NOTIF] Local Notification permission granted');
+    const isGranted = localPerms.display === 'granted';
+    
+    if (isGranted) {
+      console.log('[NOTIF] Local Notification permission confirmed.');
+    } else {
+      console.warn('[NOTIF] Notification permission denied by user.');
     }
 
-    // Role-specific setup
-    if (role === 'admin') {
+    // Role-specific setup (Admin only for FCM)
+    if (role === 'admin' && uid) {
       await setupPushNotifications(uid);
     }
+    
+    return isGranted;
   } catch (error) {
-    console.error('[NOTIF] Initialization failed:', error);
+    console.error('[NOTIF] System permission initialization failed:', error);
+    // Future-Proofing: On some future OS versions, this might throw if called too early.
+    // We return false to prevent downstream crashes.
+    return false;
   }
 };
 

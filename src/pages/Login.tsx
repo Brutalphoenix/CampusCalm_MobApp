@@ -4,7 +4,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Shield, Eye, EyeOff } from "lucide-react";
+import { Shield, Eye, EyeOff, LogIn } from "lucide-react";
+import { APP_VERSION } from "@/lib/utils";
 import { toast } from "sonner";
 
 const Login = () => {
@@ -55,15 +56,34 @@ const Login = () => {
     }
   };
 
+  const [tapCount, setTapCount] = useState(0);
+
+  const handleLogoTap = () => {
+    const newCount = tapCount + 1;
+    if (newCount >= 5) {
+      setTapCount(0);
+      navigate("/debug");
+    } else {
+      setTapCount(newCount);
+      // Reset tap count after 2 seconds of inactivity
+      setTimeout(() => setTapCount(0), 2000);
+    }
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center gradient-hero px-4">
       <div className="w-full max-w-sm animate-fade-in">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-xl gradient-accent mb-4">
+          <div 
+            onClick={handleLogoTap}
+            className="inline-flex items-center justify-center w-14 h-14 rounded-xl gradient-accent mb-4 cursor-pointer active:scale-95 transition-transform"
+          >
             <Shield className="h-7 w-7 text-accent-foreground" />
           </div>
           <h1 className="text-2xl font-bold text-primary-foreground">ClassTime</h1>
-          <p className="text-primary-foreground/60 text-sm mt-1">Phone Monitoring System</p>
+          <p className="text-primary-foreground/60 text-sm mt-1">
+            Phone Monitoring System
+          </p>
         </div>
 
         <form onSubmit={handleSubmit} className="bg-card rounded-xl p-6 shadow-card-hover space-y-4">
@@ -112,6 +132,17 @@ const Login = () => {
             </Link>
           </p>
         </form>
+
+        {/* Mandatory Enterprise Disclosure for Play Store Compliance */}
+        <div className="mt-8 p-4 bg-primary-foreground/5 rounded-lg border border-primary-foreground/10 text-center">
+          <p className="text-[10px] text-primary-foreground/40 leading-relaxed">
+            <Shield className="inline-block h-2.5 w-2.5 mr-1 mb-0.5" />
+            <span className="font-bold mr-1">{APP_VERSION}:</span>
+            This application is a specialized student focus tool. 
+            It monitors screen activity and device usage during school hours to ensure compliance with 
+            academic focus standards and prevent digital distractions.
+          </p>
+        </div>
       </div>
     </div>
   );
