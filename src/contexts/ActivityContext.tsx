@@ -71,7 +71,12 @@ export const ActivityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     };
     checkForceStop();
 
-    let settings: { active?: boolean; startTime?: string; endTime?: string; timetable?: TimetableEntry[] } | null = null;
+    let settings: { 
+      active?: boolean; 
+      manualOverride?: boolean;
+      manualOverrideDate?: string;
+      timetable?: TimetableEntry[] 
+    } | null = null;
     let baseActivity = { screenTime: 0, unlockCount: 0 };
     let sessionActivity = { screenTime: 0, unlockCount: 0 };
 
@@ -156,10 +161,16 @@ export const ActivityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         lastDateRef.current = todayStr;
       }
 
-      const isNowMonitoring = !!settings.active && inClass && !profile?.blocked;
-      const classChanged = isNowMonitoring && wasMonitoringRef.current && prevClassIdRef.current !== currentClassIdRef.current;
+      const isManual = (settings.manualOverride === true || settings.manualOverride === undefined) && settings.manualOverrideDate === todayStr;
+      const effectiveMonitoring = (isManual ? !!settings.active : (!!settings.active && inClass)) && !profile?.blocked;
+
+      // Monitoring Evaluation Log
+      console.log(`[Sync] Path: ${schedulePath} | Manual: ${isManual} | InClass: ${inClass} | Blocked: ${profile?.blocked} => Monitoring: ${effectiveMonitoring}`);
+
+      const isNowMonitoringRefVal = effectiveMonitoring; // Use a local variable to avoid confusion
+      const classChanged = isNowMonitoringRefVal && wasMonitoringRef.current && prevClassIdRef.current !== currentClassIdRef.current;
       
-      if ((wasMonitoringRef.current && !isNowMonitoring) || classChanged) {
+      if ((wasMonitoringRef.current && !isNowMonitoringRefVal) || classChanged) {
         ForegroundService.stopForegroundService().catch(() => {});
         isFGSRunningRef.current = false;
         Preferences.set({ key: 'fgs_active', value: 'false' }).catch(() => {});
@@ -172,7 +183,7 @@ export const ActivityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         }
       } 
       
-      if ((!wasMonitoringRef.current && isNowMonitoring) || classChanged) {
+      if ((!wasMonitoringRef.current && isNowMonitoringRefVal) || classChanged) {
         if (!isFGSRunningRef.current || classChanged) {
           startFGS(currentClassNameRef.current).then(success => {
             if (success && !classChanged) {
@@ -194,9 +205,9 @@ export const ActivityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         }
       }
       
-      wasMonitoringRef.current = isNowMonitoring;
+      wasMonitoringRef.current = isNowMonitoringRefVal;
       prevClassIdRef.current = currentClassIdRef.current;
-      setMonitoring(isNowMonitoring);
+      setMonitoring(isNowMonitoringRefVal);
       Preferences.set({ key: 'last_update_ts', value: Date.now().toString() }).catch(() => {});
     };
 
@@ -303,6 +314,14 @@ export const ActivityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           };
         } else {
           baseActivity = { screenTime: 0, unlockCount: 0 };
+          // Midnight Reset: If it's a new day and we are blocked, reset.
+          if (profile?.blocked) {
+            console.log(`[RESET] New day detected (${todayStr} vs ${data.lastUpdateDate}). Resetting absent status.`);
+            setDocData(`users/${profile.uid}`, { 
+              blocked: false,
+              lastUpdateDate: todayStr // Sync the date field as well
+            }).catch(() => {});
+          }
         }
         
         setActivity({

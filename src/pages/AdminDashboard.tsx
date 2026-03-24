@@ -192,13 +192,24 @@ const AdminDashboard = () => {
         }
 
         const online = lastActiveDate ? (Date.now() - lastActiveDate.getTime()) < 5 * 60 * 1000 : false;
+        const blocked = Boolean(u.blocked || false);
+        const absentDates = (u.absentDates as string[]) || [];
+
+        // NEW: Admin-side Auto-Reset logic
+        // If student is blocked but today's date is not in absentDates, reset them.
+        const todayStr = new Date().toLocaleDateString();
+        if (blocked && !absentDates.includes(todayStr)) {
+          console.log(`[Admin Auto-Reset] Student ${u.name} was blocked on a previous day. Resetting to Present.`);
+          setDocData(`users/${u.uid}`, { blocked: false }).catch(() => {});
+        }
+
         return {
           uid: String(u.uid || ""),
           name: String(u.name || ""),
           usn: String(u.usn || ""),
           phone: String(u.phone || ""),
-          blocked: Boolean(u.blocked || false),
-          absentDates: (u.absentDates as string[]) || [],
+          blocked,
+          absentDates,
           screenTime: Number(act.screenTime || 0),
           unlockCount: Number(act.unlockCount || 0),
           lastActive: lastActiveDate,
@@ -277,6 +288,11 @@ const AdminDashboard = () => {
 
       if (Object.keys(updates).length > 0 && profile?.uid) {
         await setDocData(`users/${profile.uid}/settings/monitoring`, updates);
+        
+        // Global Sync for Master Admin (Automation)
+        if (profile?.usn === "ADMIN001") {
+          await setDocData(`settings/monitoring`, updates);
+        }
       }
     };
 
@@ -475,11 +491,18 @@ const AdminDashboard = () => {
   };
   const saveSchedule = async () => {
     try {
-      await setDocData(`users/${profile?.uid}/settings/monitoring`, {
+      const updates = {
         timetable,
-        manualOverride: false, // Resume auto-schedule immediately when saved
+        manualOverride: false,
         manualOverrideDate: null,
-      });
+      };
+      await setDocData(`users/${profile?.uid}/settings/monitoring`, updates);
+      
+      // Global Sync for Master Admin
+      if (profile?.usn === "ADMIN001") {
+        await setDocData(`settings/monitoring`, updates);
+      }
+      
       setIsWizardOpen(false);
       toast.success("Weekly schedule saved and activated!");
     } catch (err: any) {
@@ -492,11 +515,18 @@ const AdminDashboard = () => {
     lastManualActionTime.current = Date.now();
     const newActive = !schedActive;
     try {
-      await setDocData(`users/${profile?.uid}/settings/monitoring`, {
+      const updates = {
         active: newActive,
         manualOverride: true,
         manualOverrideDate: new Date().toDateString(),
-      });
+      };
+      await setDocData(`users/${profile?.uid}/settings/monitoring`, updates);
+      
+      // Global Sync for Master Admin
+      if (profile?.usn === "ADMIN001") {
+        await setDocData(`settings/monitoring`, updates);
+      }
+      
       toast.success(newActive ? "App activated manually! Schedule resumes at next transition." : "App deactivated manually! Schedule resumes at next transition.");
     } catch (err: any) {
       console.error("Toggle update error:", err);
@@ -518,6 +548,11 @@ const AdminDashboard = () => {
       await setDocData(`users/${profile?.uid}/settings/monitoring`, {
         timetable: updated,
       });
+
+      // Global Sync for Master Admin
+      if (profile?.usn === "ADMIN001") {
+        await setDocData(`settings/monitoring`, { timetable: updated });
+      }
       setNewEntry({ day: "Monday", subject: "", startTime: "09:00", endTime: "10:00" });
       setShowAddForm(false);
       toast.success("Class added to timetable");
@@ -534,6 +569,12 @@ const AdminDashboard = () => {
     await setDocData(`users/${profile?.uid}/settings/monitoring`, {
       timetable: updated,
     });
+    
+    // Global Sync for Master Admin
+    if (profile?.usn === "ADMIN001") {
+      await setDocData(`settings/monitoring`, { timetable: updated });
+    }
+    
     toast.success("Class removed");
   };
 
