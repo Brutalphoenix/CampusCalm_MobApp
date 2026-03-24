@@ -8,6 +8,8 @@ import { Unlock, Clock, Bell, AlertTriangle } from "lucide-react";
 import { onCollectionSnapshot, setDocData } from "@/lib/realFirebase";
 import { arrayUnion } from "firebase/firestore";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
+import { syncDataToAdmin } from "@/lib/monitoringService";
+import { requestAdminNotification } from "@/lib/notificationService";
 
 interface Alert {
   id: string;
@@ -84,10 +86,19 @@ const StudentDashboard = () => {
             <button 
               onClick={async () => {
                 if(window.confirm("Are you sure you want to mark yourself as absent for today? Your admin will see this.")) {
-                  await setDocData(`users/${profile?.uid}`, { 
+                  const uid = profile?.uid;
+                  if (!uid) return;
+
+                  await setDocData(`users/${uid}`, { 
                     blocked: true,
                     absentDates: arrayUnion(new Date().toLocaleDateString())
                   });
+
+                  // Trigger immediate sync and notification
+                  await syncDataToAdmin(uid);
+                  if (profile.createdBy) {
+                    await requestAdminNotification(profile.createdBy, 'ABSENT_ALERT', profile.name);
+                  }
                 }
               }}
               className="mt-3 px-6 py-2 bg-destructive hover:bg-destructive/90 text-destructive-foreground text-sm rounded-full font-bold shadow-md transition-all active:scale-95"

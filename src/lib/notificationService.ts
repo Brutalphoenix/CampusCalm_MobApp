@@ -98,7 +98,7 @@ const setupPushNotifications = async (uid: string) => {
  * 4. Trigger for Cloud Functions
  * Logs a request to send a notification to the admin.
  */
-export const requestAdminNotification = async (adminUid: string, type: 'SESSION_START' | 'REPORT_READY', studentName: string) => {
+export const requestAdminNotification = async (adminUid: string, type: 'SESSION_START' | 'REPORT_READY' | 'ABSENT_ALERT', studentName: string) => {
   try {
     const alertId = `${type}_${Date.now()}`;
     await setDoc(doc(db, `admin_notifications_queue/${alertId}`), {
@@ -107,7 +107,9 @@ export const requestAdminNotification = async (adminUid: string, type: 'SESSION_
       studentName,
       message: type === 'SESSION_START' 
         ? `${studentName} has started a monitoring session.` 
-        : `A new Batch Report from ${studentName} is ready for review.`,
+        : type === 'ABSENT_ALERT'
+          ? `${studentName} marked themselves as Absent.`
+          : `A new Batch Report from ${studentName} is ready for review.`,
       status: 'pending',
       timestamp: new Date()
     });

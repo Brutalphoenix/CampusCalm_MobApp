@@ -34,6 +34,7 @@ export const ActivityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const currentClassIdRef = useRef<string | null>(null);
   const prevClassIdRef = useRef<string | null>(null);
   const currentClassNameRef = useRef<string>("Unknown");
+  const lastDateRef = useRef<string>(new Date().toDateString());
 
   const isFGSRunningRef = useRef(false);
   const lastBatteryAlertRef = useRef(0);
@@ -137,8 +138,22 @@ export const ActivityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       currentClassIdRef.current = currentClass?.id || null;
       currentClassNameRef.current = currentClass?.subject || "Unknown";
 
-      if (profile?.blocked && inClass) {
-        setDocData(`users/${profile.uid}`, { blocked: false }).catch(() => {});
+      // Midnight Reset Logic (Check if day changed)
+      const todayStr = now.toDateString();
+      if (lastDateRef.current !== todayStr) {
+        console.log(`[RESET] New day detected: ${todayStr}. Resetting status.`);
+        setDocData(`users/${profile.uid}`, { 
+          blocked: false,
+          screenTime: 0,
+          unlockCount: 0,
+          lastUpdateDate: todayStr
+        }).catch(() => {});
+        
+        // Reset local activity
+        baseActivity = { screenTime: 0, unlockCount: 0 };
+        sessionActivity = { screenTime: 0, unlockCount: 0 };
+        setActivity({ screenTime: 0, unlockCount: 0 });
+        lastDateRef.current = todayStr;
       }
 
       const isNowMonitoring = !!settings.active && inClass && !profile?.blocked;
@@ -174,6 +189,8 @@ export const ActivityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         
         if (!classChanged && profile?.createdBy) {
           requestAdminNotification(profile.createdBy, 'SESSION_START', profile.name);
+          // NEW: Immediate sync on start to update Admin Dashboard
+          syncDataToAdmin(profile.uid).catch(() => {});
         }
       }
       
